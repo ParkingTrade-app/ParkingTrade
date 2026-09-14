@@ -271,6 +271,23 @@
     - Enable Cloud Messaging.
   - For **web push**: add a Web app in the same Firebase project; pass web config via `--dart-define` (see §14) and configure `web/firebase-messaging-sw.js` with the same config for background push.
 
+- **Production Firebase project readiness (Workstream C · Release Engineering)**
+  - Production uses its **own** Firebase project (separate from the staging project used by `main`), registered under the app id `com.parkingtrade.app` (unified across Android/iOS since PR #33).
+  - No code changes are required to point mobile builds at a different Firebase project: `android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist` are gitignored and read at build time; `lib/firebase_initializer.dart` calls plain `Firebase.initializeApp()` with no embedded project config. Swapping projects is a **file drop-in**, not a code change:
+    - Drop the production `google-services.json` into `android/app/` and the production `GoogleService-Info.plist` into `ios/Runner/` only on the machine/CI job doing the production build — never commit them.
+    - No `com.google.gms.google-services` Gradle plugin is applied (and none is needed): `firebase_core`'s Android implementation parses `google-services.json` directly, since this app doesn't use Crashlytics/Performance/Analytics.
+  - **Web** Firebase config for production is already environment-isolated: `deploy-production.yml` reads `FIREBASE_WEB_API_KEY`/`FIREBASE_WEB_APP_ID`/`FIREBASE_WEB_PROJECT_ID`/`FIREBASE_WEB_MESSAGING_SENDER_ID`/`FIREBASE_WEB_AUTH_DOMAIN`/`FIREBASE_WEB_STORAGE_BUCKET` and `FIREBASE_PROJECT_ID`/`FIREBASE_SERVICE_ACCOUNT` from the `production` GitHub Environment (separate from the staging repo secrets of the same name) — just populate those secrets with the new production Firebase project's values, no workflow change needed.
+  - **Server-side push** (Edge Functions `_shared/fcm.ts`) needs its own prod values for `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` set as `production`-environment secrets, sourced from the new project's service-account JSON.
+  - There is currently **no CI job that builds/signs mobile artifacts** (Android AAB or iOS IPA) — those remain manual per the Deployment Checklist in `CLAUDE.md` until a dedicated mobile release workflow is added (see iOS release strategy below).
+
+- **iOS release strategy (Workstream C · Release Engineering)**
+  - **Push Notifications capability**: `ios/Runner/Runner.entitlements` declares `aps-environment` (currently `development`; Xcode's automatic signing swaps this to the correct value based on the provisioning profile type at archive time for Distribution builds — verify this at first real archive). Wired into all three `Runner` target configs via `CODE_SIGN_ENTITLEMENTS`.
+  - `Info.plist` declares `UIBackgroundModes` → `remote-notification` so FCM can wake the app in the background.
+  - Code signing: `Runner` target build configs now explicitly set `CODE_SIGN_STYLE = Automatic` for Debug/Profile/Release. The project-level hardcoded `CODE_SIGN_IDENTITY[sdk=iphoneos*] = "iPhone Developer"` was removed from the **Release** config only (kept for Debug/Profile) so Xcode can select a Distribution identity automatically when archiving for App Store Connect, rather than forcing a Development identity.
+  - No `DEVELOPMENT_TEAM` is committed — it must come from the signing environment (local Xcode account or CI secret), since it differs between a developer's personal team and any CI/organization team.
+  - **Planned CI**: a dedicated `deploy-ios.yml` (manual `workflow_dispatch` initially, mirroring the `production` environment gate pattern) using **Fastlane `match`** for certificate/profile management plus an **App Store Connect API key** (`.p8` + Key ID + Issuer ID) for authentication — avoids manual `.p12`/profile renewal and matches the "no long-lived credentials in the repo" posture used elsewhere (Vault-scoped secrets, environment-gated prod secrets). Requires a `macos-latest` runner (the existing `_verify.yml`/`ci.yml` jobs are Ubuntu-only). Not yet implemented — pending Apple Developer Program account/team details.
+  - `google-services.json`/`GoogleService-Info.plist` for iOS builds follow the same drop-in pattern as Android above; irrelevant until the iOS build workflow exists.
+
 #### 5.5 DevOps / Deployment
 
 - **First-time setup**
