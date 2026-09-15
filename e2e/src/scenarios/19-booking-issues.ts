@@ -186,8 +186,8 @@ export default (f: Factory) =>
             borrower_apartment_id: borrower().apartmentId,
             lender_apartment_id: lender().apartmentId,
             created_by_profile_id: borrower().resident.id,
-            start_time: hoursFromNow(-3).toISOString(),
-            end_time: hoursFromNow(-1).toISOString(),
+            start_time: hoursFromNow(-4).toISOString(),
+            end_time: hoursFromNow(-1.5).toISOString(),
             status: 'approved',
           })
           .select('id')
@@ -196,6 +196,6 @@ export default (f: Factory) =>
       ) as { id: string }
       const { error } = await f.svc.rpc('complete_expired_bookings')
       expect(!error, `complete_expired_bookings failed: ${error?.message}`)
-      eq((await f.getBooking(recent.id))!.status, 'approved', 'end_time + 1h is still inside the 2h grace')
+      eq((await f.getBooking(recent.id))!.status, 'approved', 'end_time + 1.5h is still inside the 2h grace')
     })
   })
