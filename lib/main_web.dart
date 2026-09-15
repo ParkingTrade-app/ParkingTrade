@@ -9,9 +9,11 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/firebase_options_web.dart';
+import 'config/sentry_config.dart';
 import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -26,15 +28,38 @@ import 'screens/admin/admin_dashboard_screen.dart';
 import 'models/profile.dart';
 
 void main() async {
-  // Set up error handlers to catch and display errors
+  if (SentryConfig.isConfigured) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = SentryConfig.dsn;
+        options.environment = SentryConfig.environment;
+        // Errors only for now — no performance tracing/session replay yet.
+        options.tracesSampleRate = 0.0;
+      },
+      appRunner: _runApp,
+    );
+  } else {
+    await _runApp();
+  }
+}
+
+Future<void> _runApp() async {
+  // Set up error handlers to catch and display errors. If Sentry is
+  // configured, SentryFlutter.init() already installed handlers that report
+  // to Sentry — chain ours after theirs instead of overwriting them, so both
+  // the debug logging below and Sentry's reporting run.
+  final previousOnError = FlutterError.onError;
   FlutterError.onError = (FlutterErrorDetails details) {
+    previousOnError?.call(details);
     FlutterError.presentError(details);
     debugPrint('FlutterError: ${details.exception}');
     debugPrint('Stack: ${details.stack}');
   };
 
   // Handle async errors
+  final previousPlatformOnError = PlatformDispatcher.instance.onError;
   PlatformDispatcher.instance.onError = (error, stack) {
+    previousPlatformOnError?.call(error, stack);
     debugPrint('PlatformDispatcher error: $error');
     debugPrint('Stack: $stack');
     return true;

@@ -18,6 +18,8 @@
 #   SUPABASE_SERVICE_ROLE_KEY — service_role key (bootstrap: Vault + cron drains)
 #   FIREBASE_SERVICE_ACCOUNT  — FCM v1 service-account JSON (Edge runtime)
 #   PLACES_API_KEY            — Google Places key (Edge runtime)
+#   SENTRY_DSN                — Sentry DSN for the STAGING project, Edge Function
+#                                error reporting (optional — omit to disable)
 
 name: Deploy to Staging
 
@@ -80,6 +82,7 @@ jobs:
           SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: bash scripts/bootstrap-env.sh
 
       - name: Deployment summary

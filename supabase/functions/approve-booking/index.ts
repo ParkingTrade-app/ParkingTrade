@@ -2,6 +2,7 @@
 // both of which have flaked during deploys (esm.sh 522, deno.land outages).
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { sendPushToUser } from '../_shared/push.ts'
+import { captureException } from '../_shared/sentry.ts'
 
 const serve = Deno.serve
 
@@ -181,6 +182,8 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('[approve-booking] Unhandled error:', error?.message ?? error, error?.stack ?? '')
+    await captureException(error, { functionName: 'approve-booking' })
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
