@@ -29,6 +29,7 @@ import joinRequests from './scenarios/15-join-requests.js'
 import spotManagement from './scenarios/16-spot-management.js'
 import buildingAnnouncements from './scenarios/17-building-announcements.js'
 import recurringAvailability from './scenarios/18-recurring-availability.js'
+import bookingIssues from './scenarios/19-booking-issues.js'
 
 async function main() {
   const cfg = loadConfig()
@@ -67,6 +68,7 @@ async function main() {
     spotManagement(f),
     buildingAnnouncements(f),
     recurringAvailability(f),
+    bookingIssues(f),
   ]
 
   let results
