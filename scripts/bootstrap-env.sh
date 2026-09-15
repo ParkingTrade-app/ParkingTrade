@@ -20,6 +20,11 @@
 #   SERVICE_ROLE_KEY          — service_role secret
 #   FIREBASE_SERVICE_ACCOUNT  — FCM v1 service-account JSON
 #   PLACES_API_KEY            — Google Places key
+#
+# Optional environment:
+#   SENTRY_DSN                — Sentry DSN for Edge Function error reporting
+#                                (_shared/sentry.ts). Omit to leave it unset —
+#                                functions run with Sentry reporting disabled.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -29,6 +34,7 @@ cd "$(dirname "$0")/.."
 : "${SERVICE_ROLE_KEY:?}"
 : "${FIREBASE_SERVICE_ACCOUNT:?}"
 : "${PLACES_API_KEY:?}"
+: "${SENTRY_DSN:=}"
 
 POOLER_URL_FILE="supabase/.temp/pooler-url"
 if [ ! -s "$POOLER_URL_FILE" ]; then
@@ -50,6 +56,11 @@ echo "▶ Syncing Edge Function runtime secrets…"
 supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
   FIREBASE_SERVICE_ACCOUNT="$FIREBASE_SERVICE_ACCOUNT" \
   PLACES_API_KEY="$PLACES_API_KEY" >/dev/null
+if [ -n "$SENTRY_DSN" ]; then
+  echo "::add-mask::${SENTRY_DSN}"
+  supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
+    SENTRY_DSN="$SENTRY_DSN" >/dev/null
+fi
 echo "  done."
 
 echo "▶ Running bootstrap.sql (pg_cron + Vault) via ${DB_URL%%@*}@…"

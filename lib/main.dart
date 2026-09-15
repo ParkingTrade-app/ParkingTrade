@@ -4,9 +4,11 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_router.dart';
+import 'config/sentry_config.dart';
 import 'config/supabase_config.dart';
 import 'config/places_config.dart';
 import 'firebase_initializer_stub.dart' if (dart.library.io) 'firebase_initializer.dart' as firebase_init;
@@ -14,6 +16,22 @@ import 'services/notification_service_stub.dart' if (dart.library.io) 'services/
 import 'theme/app_theme.dart';
 
 void main() async {
+  if (SentryConfig.isConfigured) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = SentryConfig.dsn;
+        options.environment = SentryConfig.environment;
+        // Errors only for now — no performance tracing/session replay yet.
+        options.tracesSampleRate = 0.0;
+      },
+      appRunner: _runApp,
+    );
+  } else {
+    await _runApp();
+  }
+}
+
+Future<void> _runApp() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
   debugPrint('### MAIN STARTED ###');

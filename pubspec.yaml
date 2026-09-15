@@ -30,6 +30,9 @@ dependencies:
   # Push Notifications (FCM)
   firebase_core: ^4.4.0
   firebase_messaging: ^16.1.1
+
+  # Error tracking / observability
+  sentry_flutter: ^9.6.0
   
   # Utils
   uuid: ^4.2.1

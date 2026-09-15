@@ -16,6 +16,7 @@
 #   FIREBASE_WEB_MESSAGING_SENDER_ID
 #   FIREBASE_WEB_AUTH_DOMAIN
 #   FIREBASE_WEB_STORAGE_BUCKET
+#   SENTRY_DSN                     - Sentry DSN for the STAGING Sentry project (error tracking). Omit to disable.
 #
 # Behavior:
 #   - Push to main: waits for the "CI" workflow to succeed, then deploys to the live channel.
@@ -83,10 +84,12 @@ jobs:
           FIREBASE_WEB_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_WEB_MESSAGING_SENDER_ID }}
           FIREBASE_WEB_AUTH_DOMAIN: ${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
           FIREBASE_WEB_STORAGE_BUCKET: ${{ secrets.FIREBASE_WEB_STORAGE_BUCKET }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           flutter build web \
             --profile \
             --dart-define=isDev=true \
+            --dart-define=APP_ENV=staging \
             --dart-define=PWA_STRATEGY=offline-first \
             -t lib/main_web.dart \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
@@ -98,7 +101,8 @@ jobs:
             --dart-define=FIREBASE_WEB_PROJECT_ID="$FIREBASE_WEB_PROJECT_ID" \
             --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="$FIREBASE_WEB_MESSAGING_SENDER_ID" \
             --dart-define=FIREBASE_WEB_AUTH_DOMAIN="$FIREBASE_WEB_AUTH_DOMAIN" \
-            --dart-define=FIREBASE_WEB_STORAGE_BUCKET="$FIREBASE_WEB_STORAGE_BUCKET"
+            --dart-define=FIREBASE_WEB_STORAGE_BUCKET="$FIREBASE_WEB_STORAGE_BUCKET" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN"
 
       - name: Deploy to Firebase Hosting (live)
         if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
