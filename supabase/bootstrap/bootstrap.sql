@@ -12,8 +12,9 @@
 --   1. Ensures pg_cron + pg_net extensions exist.
 --   2. Upserts the 6 feature-scoped Vault secrets that the migration-039/040/044
 --      pg_net webhook triggers read (real-time push delivery).
---   3. (Re)schedules the 5 pg_cron jobs (booking completion, waitlist expiry,
---      and the 3 notification-outbox drains — the durability backstop).
+--   3. (Re)schedules the 6 pg_cron jobs (booking completion, waitlist expiry,
+--      waitlist-vs-upcoming-availability backfill, and the 3 notification-outbox
+--      drains — the durability backstop).
 --   4. Prints a verification summary (the deploy step asserts the counts).
 --
 -- Usage (normally invoked by scripts/bootstrap-env.sh, which derives the
@@ -111,6 +112,10 @@ BEGIN
        '*/15 * * * *',
        'SELECT expire_waitlist_entries()'),
 
+      ('match-waitlist-upcoming',
+       '*/15 * * * *',
+       'SELECT match_waitlist_against_upcoming_availability()'),
+
       ('drain-waitlist-notifications',
        '*/2 * * * *',
        format(drain_tpl, fn_url || '/functions/v1/notify-waitlist-match',
@@ -135,7 +140,7 @@ BEGIN
 END $$;
 
 -- 4. Verification -------------------------------------------------------
---    deploy step greps this output; expects: cron jobs = 5, vault secrets = 6.
+--    deploy step greps this output; expects: cron jobs >= 6, vault secrets = 6.
 SELECT 'cron jobs'      AS check, count(*)::text AS value FROM cron.job
 UNION ALL
 SELECT 'vault secrets', count(*)::text FROM vault.secrets WHERE name LIKE '%\_notify\_%'

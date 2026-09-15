@@ -75,7 +75,7 @@ cron_jobs="$(printf '%s\n'  "$OUT" | awk -F= '$1=="cron jobs"{print $2}')"
 vault_secrets="$(printf '%s\n' "$OUT" | awk -F= '$1=="vault secrets"{print $2}')"
 
 fail=0
-[ "${cron_jobs:-0}" -ge 5 ]     || { echo "::error::expected >=5 cron jobs, got '${cron_jobs:-}'"; fail=1; }
+[ "${cron_jobs:-0}" -ge 6 ]     || { echo "::error::expected >=6 cron jobs, got '${cron_jobs:-}'"; fail=1; }
 [ "${vault_secrets:-0}" -eq 6 ] || { echo "::error::expected 6 vault secrets, got '${vault_secrets:-}'"; fail=1; }
 printf '%s\n' "$OUT" | grep -q 'pg_cron ext=MISSING' && { echo "::error::pg_cron extension missing"; fail=1; }
 printf '%s\n' "$OUT" | grep -q 'pg_net ext=MISSING'  && { echo "::error::pg_net extension missing";  fail=1; }
