@@ -23,6 +23,7 @@ FUNCTIONS=(
   notify-building-announcement
   notify-spot-available
   notify-waitlist-match
+  notify-booking-issue
   places-autocomplete
   review-join-request
   send-chat-message
