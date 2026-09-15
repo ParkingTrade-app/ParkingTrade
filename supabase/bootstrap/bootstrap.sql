@@ -10,10 +10,10 @@
 --
 -- What it does, all idempotently:
 --   1. Ensures pg_cron + pg_net extensions exist.
---   2. Upserts the 6 feature-scoped Vault secrets that the migration-039/040/044
+--   2. Upserts the 8 feature-scoped Vault secrets that the migration-039/040/044/048
 --      pg_net webhook triggers read (real-time push delivery).
---   3. (Re)schedules the 6 pg_cron jobs (booking completion, waitlist expiry,
---      waitlist-vs-upcoming-availability backfill, and the 3 notification-outbox
+--   3. (Re)schedules the 7 pg_cron jobs (booking completion, waitlist expiry,
+--      waitlist-vs-upcoming-availability backfill, and the 4 notification-outbox
 --      drains — the durability backstop).
 --   4. Prints a verification summary (the deploy step asserts the counts).
 --
@@ -59,7 +59,7 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- 2. Vault secrets ---------------------------------------------------------
---    3 pipelines (announcement / spot / waitlist) × (base_url, service_role_key).
+--    4 pipelines (announcement / spot / waitlist / issue) × (base_url, service_role_key).
 --    Feature-scoped on purpose so each pipeline rotates/disables independently.
 DO $$
 DECLARE
@@ -75,7 +75,9 @@ BEGIN
       ('spot_notify_functions_base_url',         v_url),
       ('spot_notify_service_role_key',           v_key),
       ('waitlist_notify_functions_base_url',     v_url),
-      ('waitlist_notify_service_role_key',       v_key)
+      ('waitlist_notify_service_role_key',       v_key),
+      ('issue_notify_functions_base_url',        v_url),
+      ('issue_notify_service_role_key',          v_key)
     ) AS t(name, val)
   LOOP
     SELECT id INTO sec_id FROM vault.secrets WHERE name = rec.name;
@@ -129,6 +131,11 @@ BEGIN
       ('drain-building-announcement-notifications',
        '*/2 * * * *',
        format(drain_tpl, fn_url || '/functions/v1/notify-building-announcement',
+              'Bearer ' || svc_key)),
+
+      ('drain-booking-issue-notifications',
+       '*/2 * * * *',
+       format(drain_tpl, fn_url || '/functions/v1/notify-booking-issue',
               'Bearer ' || svc_key))
     ) AS t(jobname, sched, cmd)
   LOOP
@@ -140,7 +147,7 @@ BEGIN
 END $$;
 
 -- 4. Verification -------------------------------------------------------
---    deploy step greps this output; expects: cron jobs >= 6, vault secrets = 6.
+--    deploy step greps this output; expects: cron jobs >= 7, vault secrets = 8.
 SELECT 'cron jobs'      AS check, count(*)::text AS value FROM cron.job
 UNION ALL
 SELECT 'vault secrets', count(*)::text FROM vault.secrets WHERE name LIKE '%\_notify\_%'

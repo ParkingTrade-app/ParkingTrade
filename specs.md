@@ -92,6 +92,8 @@
     - **Double‑booking prevention**:
       - Enforced via PostgreSQL exclusion constraints and GiST indexes on time ranges (e.g. `tstzrange(start_time, end_time)`).
       - Second approval for an overlapping time range on the same spot must fail with a clear error.
+  - **Completion**: `complete_expired_bookings()` (pg_cron every 15 min) flips `approved → completed` once `end_time + 2 hours` has passed. The 2-hour grace exists so a lender can still file `borrower_overstay` before the row leaves `approved`.
+  - **Booking issues / no-show (migration 047)**: explicit reports, not inferred. Table `booking_issues` (`lender_did_not_vacate` | `borrower_did_not_arrive` | `borrower_overstay`; status `open` | `upheld` | `dismissed`). `report_booking_issue(booking_id, kind, notes)` is SECURITY DEFINER — caller must be an approved member of the borrower apartment (`lender_did_not_vacate`) or lender apartment (the other two kinds); window is `start_time` through `end_time + 24 hours` on `approved`/`completed` rows; one open report per apartment per booking. `resolve_booking_issue(issue_id, upheld|dismissed, notes)` is building-admin-only and does **not** rewrite the booking. Writes `admin_audit_log.booking_issue_id`. Push via `booking_issue_notifications` outbox drained by `notify-booking-issue` (pg_cron + opt-in Vault webhook, migration 048, secrets `issue_notify_*`). Future `apartment_scores` (Roadmap 2.1, not this epic) should count `status = 'upheld'`. No Flutter UI in this slice.
 
 - **Messages / Chat**
   - Table: `messages`, with `booking_id`, `sender_id`, `content`, timestamps.
