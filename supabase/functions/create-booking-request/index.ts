@@ -140,6 +140,27 @@ serve(async (req) => {
       )
     }
 
+    // Recurring templates expand in SQL (migration 046). Zero periods ⇒
+    // always available (backward compatible). Overlap, not containment —
+    // same rule as ParkingSpotService.isSpotAvailable.
+    const { data: covered, error: coverError } = await supabaseClient.rpc(
+      'spot_availability_overlaps',
+      { p_spot_id: spot_id, p_start: start_time, p_end: end_time },
+    )
+    if (coverError) {
+      console.error('[create-booking-request] spot_availability_overlaps failed:', coverError.message)
+      return new Response(
+        JSON.stringify({ error: 'Failed to validate availability', details: coverError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (covered !== true) {
+      return new Response(
+        JSON.stringify({ error: 'Requested window is not within the spot\'s availability' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Find a representative profile in the lender apartment to receive the push notification.
     // Prefer apartment admins; fall back to any approved member.
     const { data: lenderProfiles } = await supabaseClient

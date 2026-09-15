@@ -69,9 +69,11 @@
 - **Spot Availability Periods**
   - Table: `spot_availability_periods`.
   - Owners can define multiple availability windows (date‑time ranges) per spot.
-  - Booking search:
-    - If spot has availability periods: requests must overlap at least one period.
+  - **Recurring templates** (`is_recurring`, `recurring_pattern` TEXT): weekly JSON `{"type":"weekly","days":["MON","WED"],"until":"ISO?"}` or legacy keywords `daily` / `weekly` / `weekdays` / `weekends`. The Flutter client still inserts the JSON as a string — the column stays TEXT so that payload does not become a JSONB scalar. SQL `parse_recurring_pattern(text)` + `expand_availability_occurrences(spot_id, from, to)` (migration 046) are the server source of truth (UTC day-walk, 90-day clamp). Dart `expandRecurringPeriods` remains for UI. Occurrences are **not** materialized as rows.
+  - Booking search / create:
+    - If spot has availability periods: requests must **overlap** at least one expanded occurrence (`spot_availability_overlaps`, enforced in `create-booking-request`).
     - If no periods defined: spot is considered always available (backward‑compatible).
+  - Waitlist: publishing a one-shot window matches overlapping `waiting` entries (032). Publishing a recurring template expands the next 30 days and matches each occurrence. Waiters who join *after* a template was published are matched by `match_waitlist_against_upcoming_availability()` (pg_cron `match-waitlist-upcoming` in `bootstrap.sql`). Matching stays informational — booking still races through the overlap constraint.
   - RLS:
     - Owners can manage their spot’s availability periods.
     - Other building members can read periods for spots they can book.
