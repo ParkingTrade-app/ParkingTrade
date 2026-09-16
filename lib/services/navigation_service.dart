@@ -17,7 +17,8 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 ///
 /// Payload contract (set by the edge functions in `supabase/functions`):
 /// - `type` — one of `booking_request`, `booking_approved`, `booking_rejected`,
-///   `chat_message`, `waitlist_match`, `spot_available`, `building_announcement`
+///   `chat_message`, `waitlist_match`, `spot_available`, `building_announcement`,
+///   `booking_issue`
 /// - `booking_id` — the booking the notification refers to (all types except
 ///   `waitlist_match`, `spot_available` and `building_announcement`)
 /// - `spot_id` + `start_time`/`end_time` — sent instead of `booking_id` for
@@ -68,6 +69,7 @@ void handleNotificationTap(Map<String, dynamic> data) {
     case 'booking_request':
     case 'booking_approved':
     case 'booking_rejected':
+    case 'booking_issue':
       navigator.push(
         MaterialPageRoute(
           builder: (_) => BookingDetailScreen(bookingId: bookingId),
