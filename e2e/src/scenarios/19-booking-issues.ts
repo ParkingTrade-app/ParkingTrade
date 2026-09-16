@@ -89,6 +89,27 @@ export default (f: Factory) =>
       eq((res.data as IssueRow).status, 'open', 'borrower report is open')
     })
 
+    await t.step('RLS 049: building admin (not a party) can SELECT the booking; outsider and foreign admin cannot', async () => {
+      const adminView = ok(
+        await w.building.admin.client.from('booking_requests').select('id').eq('id', bookingId),
+        'admin select booking',
+      ) as unknown[]
+      eq(adminView.length, 1, 'building admin should see the booking')
+
+      const outsiderView = ok(
+        await outsider().resident.client.from('booking_requests').select('id').eq('id', bookingId),
+        'outsider select booking',
+      ) as unknown[]
+      eq(outsiderView.length, 0, 'non-party resident must not see the booking')
+
+      const other = await f.createBuilding('Issue-Select-Other')
+      const foreignView = ok(
+        await other.admin.client.from('booking_requests').select('id').eq('id', bookingId),
+        'foreign admin select booking',
+      ) as unknown[]
+      eq(foreignView.length, 0, 'foreign admin must not see the booking')
+    })
+
     await t.step('RLS: outsider cannot see the issue; admin can', async () => {
       const hidden = ok(
         await outsider().resident.client.from('booking_issues').select('id').eq('id', issueId),
