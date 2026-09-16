@@ -2,13 +2,16 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../../services/booking_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/booking_issue_service.dart';
 import '../../services/chat_service.dart';
+import '../../models/booking_issue.dart';
 import '../../models/booking_request.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_snack.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/status_chip.dart';
 import '../chat/chat_screen.dart';
+import 'report_booking_issue_sheet.dart';
 
 class BookingDetailScreen extends StatefulWidget {
   final String bookingId;
@@ -23,8 +26,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   final _bookingService = BookingService();
   final _authService = AuthService();
   final _chatService = ChatService();
+  final _issueService = BookingIssueService();
   BookingDetails? _details;
   String? _currentApartmentId;
+  List<BookingIssue> _issues = const [];
   int _unread = 0;
   bool _isLoading = true;
   bool _isProcessing = false;
@@ -35,18 +40,22 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     _loadBooking();
   }
 
-  Future<void> _loadBooking() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadBooking({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
         _bookingService.getBookingDetails(widget.bookingId),
         _authService.getCurrentProfile(),
+        _issueService
+            .listForBooking(widget.bookingId)
+            .onError((_, __) => <BookingIssue>[]),
       ]);
       if (!mounted) return;
       setState(() {
         _details = results[0] as BookingDetails?;
         _currentApartmentId =
             (results[1] as dynamic)?.apartmentId as String?;
+        _issues = results[2] as List<BookingIssue>;
         _isLoading = false;
       });
       // Unread badge on the chat button — best-effort, never blocks the screen.
@@ -121,6 +130,37 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final d = _details;
     if (d == null || _currentApartmentId == null) return false;
     return _currentApartmentId == d.booking.lenderApartmentId;
+  }
+
+  bool _isParty() {
+    final d = _details;
+    if (d == null || _currentApartmentId == null) return false;
+    return _currentApartmentId == d.booking.lenderApartmentId ||
+        _currentApartmentId == d.booking.borrowerApartmentId;
+  }
+
+  bool _canReport() {
+    final d = _details;
+    final apt = _currentApartmentId;
+    if (d == null || apt == null || !_isParty()) return false;
+    if (!BookingIssue.isReportWindowOpen(d.booking, DateTime.now())) {
+      return false;
+    }
+    return !_issues.any((issue) =>
+        issue.reporterApartmentId == apt &&
+        issue.status == BookingIssueStatus.open);
+  }
+
+  Future<void> _openReportSheet() async {
+    final submitted = await showReportBookingIssueSheet(
+      context,
+      bookingId: widget.bookingId,
+      isLender: _isLender(),
+    );
+    if (submitted == true && mounted) {
+      AppSnack.success(context, 'bookings.issues.success'.tr());
+      await _loadBooking(silent: true);
+    }
   }
 
   ({String label, StatusTone tone, IconData icon}) _statusVisual(
@@ -279,6 +319,26 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       side: BorderSide(color: scheme.error),
                     ),
                   ),
+                if (_issues.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'bookings.issues.section_title'.tr(),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  for (final issue in _issues) ...[
+                    _IssueCard(issue: issue),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+                if (_canReport()) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _openReportSheet,
+                    icon: const Icon(Icons.flag_outlined),
+                    label: Text('bookings.issues.report'.tr()),
+                  ),
+                ],
               ],
             ),
           ),
@@ -378,6 +438,80 @@ class _HeaderCard extends StatelessWidget {
                 icon: status.icon,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IssueCard extends StatelessWidget {
+  final BookingIssue issue;
+
+  const _IssueCard({required this.issue});
+
+  ({String label, StatusTone tone, IconData icon}) _statusVisual() {
+    switch (issue.status) {
+      case BookingIssueStatus.open:
+        return (
+          label: 'bookings.issues.status_open'.tr(),
+          tone: StatusTone.warning,
+          icon: Icons.hourglass_top_rounded,
+        );
+      case BookingIssueStatus.upheld:
+        return (
+          label: 'bookings.issues.status_upheld'.tr(),
+          tone: StatusTone.success,
+          icon: Icons.check_circle_outline,
+        );
+      case BookingIssueStatus.dismissed:
+        return (
+          label: 'bookings.issues.status_dismissed'.tr(),
+          tone: StatusTone.neutral,
+          icon: Icons.block_rounded,
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final vis = _statusVisual();
+    final notes = issue.notes?.trim();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    bookingIssueKindLabel(issue.kind),
+                    style: theme.textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusChip(
+                  label: vis.label,
+                  tone: vis.tone,
+                  icon: vis.icon,
+                ),
+              ],
+            ),
+            if (notes != null && notes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                notes,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
