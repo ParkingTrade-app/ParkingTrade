@@ -13,7 +13,7 @@ class BookingIssueService {
 
   /// Admin-list embed: issue row + booking window/parties + spot identifier.
   static const adminListSelect =
-      '*, booking_requests(start_time,end_time,status,spot_id,borrower_apartment_id,lender_apartment_id, parking_spots(spot_identifier))';
+      '*, apartments!reporter_apartment_id(identifier), booking_requests(start_time,end_time,status,spot_id,borrower_apartment_id,lender_apartment_id, parking_spots(spot_identifier))';
 
   /// File a report. [kind] is party-gated server-side; the window is
   /// `start_time` … `end_time + 24h` on `approved`/`completed` bookings.

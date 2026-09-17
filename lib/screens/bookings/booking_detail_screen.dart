@@ -11,6 +11,7 @@ import '../../widgets/app_snack.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/status_chip.dart';
 import '../chat/chat_screen.dart';
+import '../admin/resolve_booking_issue_dialog.dart';
 import 'report_booking_issue_sheet.dart';
 
 class BookingDetailScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   int _unread = 0;
   bool _isLoading = true;
   bool _isProcessing = false;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -55,6 +57,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         _details = results[0] as BookingDetails?;
         _currentApartmentId =
             (results[1] as dynamic)?.apartmentId as String?;
+        _isAdmin = (results[1] as dynamic)?.isAdmin as bool? ?? false;
         _issues = results[2] as List<BookingIssue>;
         _isLoading = false;
       });
@@ -159,6 +162,26 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
     if (submitted == true && mounted) {
       AppSnack.success(context, 'bookings.issues.success'.tr());
+      await _loadBooking(silent: true);
+    }
+  }
+
+  Future<void> _resolveIssue(
+    BookingIssue issue,
+    BookingIssueStatus action,
+  ) async {
+    final ok = await showResolveBookingIssueDialog(
+      context,
+      issue: issue,
+      action: action,
+    );
+    if (ok == true && mounted) {
+      AppSnack.success(
+        context,
+        action == BookingIssueStatus.upheld
+            ? 'admin.issues.success_upheld'.tr()
+            : 'admin.issues.success_dismissed'.tr(),
+      );
       await _loadBooking(silent: true);
     }
   }
@@ -327,7 +350,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   ),
                   const SizedBox(height: 12),
                   for (final issue in _issues) ...[
-                    _IssueCard(issue: issue),
+                    _IssueCard(
+                      issue: issue,
+                      onUphold: _isAdmin &&
+                              issue.status == BookingIssueStatus.open
+                          ? () => _resolveIssue(
+                                issue,
+                                BookingIssueStatus.upheld,
+                              )
+                          : null,
+                      onDismiss: _isAdmin &&
+                              issue.status == BookingIssueStatus.open
+                          ? () => _resolveIssue(
+                                issue,
+                                BookingIssueStatus.dismissed,
+                              )
+                          : null,
+                    ),
                     const SizedBox(height: 8),
                   ],
                 ],
@@ -447,8 +486,14 @@ class _HeaderCard extends StatelessWidget {
 
 class _IssueCard extends StatelessWidget {
   final BookingIssue issue;
+  final VoidCallback? onUphold;
+  final VoidCallback? onDismiss;
 
-  const _IssueCard({required this.issue});
+  const _IssueCard({
+    required this.issue,
+    this.onUphold,
+    this.onDismiss,
+  });
 
   ({String label, StatusTone tone, IconData icon}) _statusVisual() {
     switch (issue.status) {
@@ -510,6 +555,26 @@ class _IssueCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
+              ),
+            ],
+            if (onUphold != null && onDismiss != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onDismiss,
+                      child: Text('admin.issues.dismiss'.tr()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onUphold,
+                      child: Text('admin.issues.uphold'.tr()),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
