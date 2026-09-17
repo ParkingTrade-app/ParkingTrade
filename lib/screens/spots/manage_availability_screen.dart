@@ -26,6 +26,7 @@ class ManageAvailabilityScreen extends StatefulWidget {
 class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
   final _spotService = ParkingSpotService();
   List<SpotAvailabilityPeriod> _periods = [];
+  Map<String, List<DateTime>> _nextByPeriod = const {};
   bool _isLoading = true;
 
   @override
@@ -42,22 +43,30 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
     try {
       final now = DateTime.now();
       final periods = (await _spotService.getAvailabilityPeriods(widget.spot.id))
-          // Secondary guard: hide any non-recurring period whose end time has
-          // already passed (handles edge cases where the service query uses a
-          // slightly stale clock or the app was backgrounded for a long time).
-          .where((p) => p.isRecurring || p.endTime.isAfter(now))
+          // Hide expired one-shots and recurring templates whose `until` has
+          // passed. Forever templates (no until) stay visible.
+          .where((p) => !p.isExpired(now))
           .toList();
+      Map<String, List<DateTime>> nextByPeriod = const {};
+      try {
+        nextByPeriod = await _spotService.nextOccurrencesForSpot(
+          spotId: widget.spot.id,
+          periods: periods,
+          now: now,
+        );
+      } catch (_) {}
+      if (!mounted) return;
       setState(() {
         _periods = periods;
+        _nextByPeriod = nextByPeriod;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      if (mounted) {
-        AppSnack.error(context, 'spots.availability.could_not_load'.tr(namedArgs: {'error': e.toString()}));
-      }
+      AppSnack.error(context, 'spots.availability.could_not_load'.tr(namedArgs: {'error': e.toString()}));
     }
   }
 
@@ -392,6 +401,14 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
     return 'spots.availability.repeats_label'.tr(namedArgs: {'type': raw});
   }
 
+  String _nextOccurrencesLabel(String periodId) {
+    final times = _nextByPeriod[periodId];
+    if (times == null || times.isEmpty) return '';
+    final fmt = DateFormat('EEE MMM d · HH:mm');
+    final joined = times.map((t) => fmt.format(t.toLocal())).join(' · ');
+    return 'spots.availability.next_occurrences'.tr(namedArgs: {'times': joined});
+  }
+
   Future<void> _deletePeriod(SpotAvailabilityPeriod period) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -497,6 +514,9 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
                                 )
                               : '${DateFormat('MMM d, y · HH:mm').format(period.startTime)}  →  ${DateFormat('MMM d, y · HH:mm').format(period.endTime)}';
                       final recurrence = _describeRecurrence(period);
+                      final nextLabel = period.isRecurring
+                          ? _nextOccurrencesLabel(period.id)
+                          : '';
                       final durationLabel =
                           _formatDuration(period.startTime, period.endTime);
                       return Padding(
@@ -565,6 +585,16 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
                                           ),
                                         ],
                                       ),
+                                      if (nextLabel.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          nextLabel,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

@@ -324,6 +324,7 @@
       "weekly_label": "שבועי · {days}",
       "weekly_label_plain": "שבועי",
       "until_suffix": " · עד {date}",
+      "next_occurrences": "הבא: {times}",
       "repeats_label": "חוזר: {type}",
       "mon": "שני",
       "tue": "שלישי",

@@ -10,13 +10,14 @@ void main() {
   });
 
   SpotAvailabilityPeriod makePeriod({
+    String id = 'test',
     required DateTime start,
     required DateTime end,
     bool recurring = false,
     String? pattern,
   }) {
     return SpotAvailabilityPeriod(
-      id: 'test',
+      id: id,
       spotId: 'spot-1',
       startTime: start,
       endTime: end,
@@ -145,6 +146,100 @@ void main() {
       for (final r in result) {
         expect(r['end']!.isAfter(DateTime.utc(2025, 7, 1)), true);
       }
+    });
+  });
+
+  group('SpotAvailabilityPeriod.isExpired', () {
+    test('one-shot is expired at end_time', () {
+      final period = makePeriod(
+        start: DateTime.utc(2025, 6, 1, 10),
+        end: DateTime.utc(2025, 6, 1, 12),
+      );
+      expect(period.isExpired(DateTime.utc(2025, 6, 1, 11, 59)), isFalse);
+      expect(period.isExpired(DateTime.utc(2025, 6, 1, 12)), isTrue);
+    });
+
+    test('recurring without until never expires', () {
+      final period = makePeriod(
+        start: DateTime.utc(2025, 1, 1, 10),
+        end: DateTime.utc(2025, 1, 1, 12),
+        recurring: true,
+        pattern: '{"type":"weekly","days":["MON"]}',
+      );
+      expect(period.isExpired(DateTime.utc(2026, 9, 1)), isFalse);
+    });
+
+    test('recurring with until hides after that instant', () {
+      final period = makePeriod(
+        start: DateTime.utc(2025, 1, 1, 10),
+        end: DateTime.utc(2025, 1, 1, 12),
+        recurring: true,
+        pattern:
+            '{"type":"weekly","days":["MON"],"until":"2025-06-01T23:59:00.000Z"}',
+      );
+      expect(period.isExpired(DateTime.utc(2025, 6, 1, 23, 58)), isFalse);
+      expect(period.isExpired(DateTime.utc(2025, 6, 1, 23, 59)), isTrue);
+    });
+  });
+
+  group('nextOccurrenceStartsFromDart', () {
+    test('returns at most four upcoming starts', () {
+      final period = makePeriod(
+        id: 'weekly-1',
+        start: DateTime.utc(2025, 6, 2, 10), // Monday
+        end: DateTime.utc(2025, 6, 2, 12),
+        recurring: true,
+        pattern: '{"type":"weekly","days":["MON"]}',
+      );
+
+      final result = service.nextOccurrenceStartsFromDart(
+        [period],
+        from: DateTime.utc(2025, 6, 2),
+        to: DateTime.utc(2025, 8, 1),
+        limit: 4,
+      );
+
+      expect(result['weekly-1'], hasLength(4));
+      expect(result['weekly-1']!.first, DateTime.utc(2025, 6, 2, 10));
+      expect(result['weekly-1']![1], DateTime.utc(2025, 6, 9, 10));
+    });
+  });
+
+  group('groupNextOccurrenceStarts', () {
+    test('keeps the next four starts on or after from', () {
+      final grouped = groupNextOccurrenceStarts(
+        [
+          {
+            'period_id': 'p1',
+            'start_time': '2025-06-01T10:00:00Z',
+          },
+          {
+            'period_id': 'p1',
+            'start_time': '2025-06-08T10:00:00Z',
+          },
+          {
+            'period_id': 'p1',
+            'start_time': '2025-06-15T10:00:00Z',
+          },
+          {
+            'period_id': 'p1',
+            'start_time': '2025-06-22T10:00:00Z',
+          },
+          {
+            'period_id': 'p1',
+            'start_time': '2025-06-29T10:00:00Z',
+          },
+        ],
+        from: DateTime.utc(2025, 6, 8),
+        limit: 4,
+      );
+
+      expect(grouped['p1'], [
+        DateTime.utc(2025, 6, 8, 10),
+        DateTime.utc(2025, 6, 15, 10),
+        DateTime.utc(2025, 6, 22, 10),
+        DateTime.utc(2025, 6, 29, 10),
+      ]);
     });
   });
 }
