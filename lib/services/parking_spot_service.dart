@@ -645,5 +645,88 @@ class ParkingSpotService {
 
     return result;
   }
+
+  /// Next occurrence start times for a spot, keyed by period id.
+  ///
+  /// Prefers `expand_availability_occurrences` (SQL, 90-day clamp). Falls
+  /// back to [expandRecurringPeriods] if the RPC fails.
+  Future<Map<String, List<DateTime>>> nextOccurrencesForSpot({
+    required String spotId,
+    required List<SpotAvailabilityPeriod> periods,
+    DateTime? now,
+    int limit = 4,
+  }) async {
+    final from = (now ?? DateTime.now()).toUtc();
+    final to = from.add(const Duration(days: 90));
+    try {
+      final response = await _supabase.rpc(
+        'expand_availability_occurrences',
+        params: {
+          'p_spot_id': spotId,
+          'p_from': from.toIso8601String(),
+          'p_to': to.toIso8601String(),
+        },
+      );
+      final rows = (response as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      return groupNextOccurrenceStarts(rows, from: from, limit: limit);
+    } catch (_) {
+      return nextOccurrenceStartsFromDart(
+        periods,
+        from: from,
+        to: to,
+        limit: limit,
+      );
+    }
+  }
+
+  /// Dart-expander fallback used when the SQL RPC is unavailable.
+  @visibleForTesting
+  Map<String, List<DateTime>> nextOccurrenceStartsFromDart(
+    List<SpotAvailabilityPeriod> periods, {
+    required DateTime from,
+    required DateTime to,
+    int limit = 4,
+  }) {
+    final result = <String, List<DateTime>>{};
+    for (final period in periods) {
+      if (!period.isRecurring) continue;
+      final instances = expandRecurringPeriods([period], from, to)
+        ..sort((a, b) => a['start']!.compareTo(b['start']!));
+      result[period.id] = instances
+          .map((i) => i['start']!)
+          .take(limit)
+          .toList();
+    }
+    return result;
+  }
+}
+
+/// Groups RPC rows from `expand_availability_occurrences` into the next
+/// [limit] start times per `period_id`, starting at [from].
+@visibleForTesting
+Map<String, List<DateTime>> groupNextOccurrenceStarts(
+  List<Map<String, dynamic>> rows, {
+  required DateTime from,
+  int limit = 4,
+}) {
+  final grouped = <String, List<DateTime>>{};
+  for (final row in rows) {
+    final id = row['period_id'] as String?;
+    final startRaw = row['start_time'];
+    if (id == null || startRaw == null) continue;
+    final start = startRaw is DateTime
+        ? startRaw
+        : DateTime.parse(startRaw as String);
+    grouped.putIfAbsent(id, () => []).add(start);
+  }
+  final result = <String, List<DateTime>>{};
+  for (final entry in grouped.entries) {
+    final starts = entry.value.where((s) => !s.isBefore(from)).toList()
+      ..sort();
+    result[entry.key] = starts.take(limit).toList();
+  }
+  return result;
 }
 
