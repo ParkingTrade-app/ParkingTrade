@@ -9,6 +9,7 @@ import '../../services/admin_service.dart';
 import '../../services/building_service.dart';
 import '../../services/announcement_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/booking_issue_service.dart';
 import '../../models/admin_parking_spot.dart';
 import '../../models/authorized_apartment.dart';
 import '../../models/building.dart';
@@ -33,15 +34,18 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with SingleTickerProviderStateMixin {
   final _adminService = AdminService();
+  final _issueService = BookingIssueService();
   late TabController _tabController;
   List<Profile> _pendingMembers = [];
   List<Profile> _allMembers = [];
   List<BuildingJoinRequest> _joinRequests = [];
+  int _openIssueCount = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    // Length stays 8 — booking issues are a dedicated screen, not a 9th tab.
     _tabController = TabController(length: 8, vsync: this);
     _loadData();
   }
@@ -55,16 +59,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final [pending, all] = await Future.wait([
+      final results = await Future.wait([
         _adminService.getPendingMembers(),
         _adminService.getBuildingMembers(),
+        _adminService.getJoinRequests(),
+        _issueService.countOpen().onError((_, __) => 0),
       ]);
-      final joinRequests = await _adminService.getJoinRequests();
       if (!mounted) return;
       setState(() {
-        _pendingMembers = pending;
-        _allMembers = all;
-        _joinRequests = joinRequests;
+        _pendingMembers = results[0] as List<Profile>;
+        _allMembers = results[1] as List<Profile>;
+        _joinRequests = results[2] as List<BuildingJoinRequest>;
+        _openIssueCount = results[3] as int;
         _isLoading = false;
       });
     } catch (e) {
@@ -73,6 +79,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       AppSnack.error(
           context, e.toString().replaceAll('Exception: ', ''));
     }
+  }
+
+  Future<void> _openIssues() async {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      await router.push('/admin-issues');
+    } else {
+      await Navigator.of(context).pushNamed('/admin-issues');
+    }
+    if (!mounted) return;
+    try {
+      final n = await _issueService.countOpen();
+      if (mounted) setState(() => _openIssueCount = n);
+    } catch (_) {}
   }
 
   Future<void> _handleAction(Profile member, String action) async {
@@ -357,6 +377,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'admin.issues.tooltip'.tr(),
+            onPressed: _openIssues,
+            icon: Badge.count(
+              count: _openIssueCount,
+              isLabelVisible: _openIssueCount > 0,
+              child: const Icon(Icons.flag_outlined),
+            ),
+          ),
           IconButton(
             tooltip: 'language_toggle'.tr(),
             icon: const Icon(Icons.translate_rounded),

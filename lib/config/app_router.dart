@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/dev_auth_config.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/admin_booking_issues_screen.dart';
 import '../screens/announcements/announcements_screen.dart';
 import '../screens/auth/admin_login_screen.dart';
 import '../screens/auth/auth_wrapper.dart';
@@ -85,6 +86,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin-dashboard',
         redirect: _requireAdmin,
         builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin-issues',
+        redirect: _requireAdmin,
+        builder: (context, state) => const AdminBookingIssuesScreen(),
       ),
       GoRoute(
         path: '/setup',
