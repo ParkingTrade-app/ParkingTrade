@@ -72,6 +72,34 @@ void main() {
       expect(issue.borrowerApartmentId, 'apt-b');
       expect(issue.lenderApartmentId, 'apt-l');
       expect(issue.spotIdentifier, '12A');
+      expect(issue.reporterApartmentIdentifier, isNull);
+    });
+
+    test('maps apartments embed for the reporter unit', () {
+      final issue = BookingIssue.fromJson({
+        'id': 'iss-2b',
+        'booking_id': 'br-2',
+        'building_id': 'bldg-1',
+        'reporter_apartment_id': 'apt-b',
+        'kind': 'lender_did_not_vacate',
+        'status': 'open',
+        'created_at': '2026-09-16T11:00:00Z',
+        'updated_at': '2026-09-16T11:00:00Z',
+        'apartments': {'identifier': '4B'},
+        'booking_requests': {
+          'start_time': '2026-09-16T08:00:00Z',
+          'end_time': '2026-09-16T10:00:00Z',
+          'status': 'approved',
+          'spot_id': 'sp-1',
+          'borrower_apartment_id': 'apt-b',
+          'lender_apartment_id': 'apt-l',
+          'parking_spots': {'spot_identifier': '12A'},
+        },
+      });
+
+      expect(issue.reporterApartmentIdentifier, '4B');
+      expect(issue.spotIdentifier, '12A');
+      expect(issue.borrowerApartmentId, 'apt-b');
     });
 
     test('tolerates list-shaped embeds from PostgREST', () {

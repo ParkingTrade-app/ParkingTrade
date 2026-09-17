@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../screens/announcements/announcements_screen.dart';
 import '../screens/bookings/available_spots_screen.dart';
 import '../screens/bookings/booking_detail_screen.dart';
 import '../screens/chat/chat_screen.dart';
+import 'auth_service.dart';
 
 /// Global navigator key.
 ///
@@ -17,7 +19,8 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 ///
 /// Payload contract (set by the edge functions in `supabase/functions`):
 /// - `type` — one of `booking_request`, `booking_approved`, `booking_rejected`,
-///   `chat_message`, `waitlist_match`, `spot_available`, `building_announcement`
+///   `chat_message`, `waitlist_match`, `spot_available`, `building_announcement`,
+///   `booking_issue`
 /// - `booking_id` — the booking the notification refers to (all types except
 ///   `waitlist_match`, `spot_available` and `building_announcement`)
 /// - `spot_id` + `start_time`/`end_time` — sent instead of `booking_id` for
@@ -25,7 +28,8 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 ///   `spot_available` (a spot + window a neighbor just published — Roadmap 2)
 /// - `announcement_id` + `building_id` — sent for `building_announcement`
 ///   (an admin broadcast — Roadmap Phase 4)
-void handleNotificationTap(Map<String, dynamic> data) {
+/// - `event` — `reported` | `resolved` on `booking_issue` payloads
+Future<void> handleNotificationTap(Map<String, dynamic> data) async {
   final navigator = rootNavigatorKey.currentState;
   if (navigator == null) return;
 
@@ -54,6 +58,24 @@ void handleNotificationTap(Map<String, dynamic> data) {
     return;
   }
 
+  // New reports: building admins land on the issues inbox. Everyone else
+  // (and `resolved` events) continues to booking detail below.
+  if (type == 'booking_issue' && data['event']?.toString() == 'reported') {
+    var profile = AuthService.cachedProfile;
+    profile ??= await AuthService().getCurrentProfile();
+    if (profile?.isAdmin == true) {
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      final router = GoRouter.maybeOf(ctx);
+      if (router != null) {
+        router.push('/admin-issues');
+      } else {
+        Navigator.of(ctx).pushNamed('/admin-issues');
+      }
+      return;
+    }
+  }
+
   final bookingId = data['booking_id']?.toString();
   if (bookingId == null || bookingId.isEmpty) return;
 
@@ -68,6 +90,7 @@ void handleNotificationTap(Map<String, dynamic> data) {
     case 'booking_request':
     case 'booking_approved':
     case 'booking_rejected':
+    case 'booking_issue':
       navigator.push(
         MaterialPageRoute(
           builder: (_) => BookingDetailScreen(bookingId: bookingId),

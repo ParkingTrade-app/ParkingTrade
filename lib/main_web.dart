@@ -25,6 +25,7 @@ import 'screens/building/pending_approval_screen.dart';
 import 'screens/building/rejected_screen.dart';
 import 'screens/spots/parking_spots_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
+import 'screens/admin/admin_booking_issues_screen.dart';
 import 'models/profile.dart';
 
 void main() async {
@@ -177,6 +178,7 @@ class ParkingTradeApp extends StatelessWidget {
         '/rejected': (context) => const RejectedScreen(),
         '/home': (context) => const ParkingSpotsScreen(),
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
+        '/admin-issues': (context) => const AdminBookingIssuesScreen(),
       },
     );
   }

@@ -31,6 +31,9 @@ class BookingIssue {
   /// Present when the embed includes `parking_spots(spot_identifier)`.
   final String? spotIdentifier;
 
+  /// Present when the embed includes `apartments(identifier)` for the reporter.
+  final String? reporterApartmentIdentifier;
+
   const BookingIssue({
     required this.id,
     required this.bookingId,
@@ -52,11 +55,13 @@ class BookingIssue {
     this.borrowerApartmentId,
     this.lenderApartmentId,
     this.spotIdentifier,
+    this.reporterApartmentIdentifier,
   });
 
   factory BookingIssue.fromJson(Map<String, dynamic> json) {
     final booking = _embedMap(json['booking_requests']);
     final spot = booking == null ? null : _embedMap(booking['parking_spots']);
+    final reporterApt = _embedMap(json['apartments']);
 
     return BookingIssue(
       id: json['id'] as String,
@@ -87,6 +92,7 @@ class BookingIssue {
       borrowerApartmentId: booking?['borrower_apartment_id'] as String?,
       lenderApartmentId: booking?['lender_apartment_id'] as String?,
       spotIdentifier: spot?['spot_identifier'] as String?,
+      reporterApartmentIdentifier: reporterApt?['identifier'] as String?,
     );
   }
 
