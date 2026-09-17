@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class SpotAvailabilityPeriod {
   final String id;
   final String spotId;
@@ -56,5 +58,31 @@ class SpotAvailabilityPeriod {
                      requestedEndUtc.isAfter(periodStartUtc);
     
     return overlaps;
+  }
+
+  /// `until` from a weekly JSON pattern, if present.
+  DateTime? get recurrenceUntil {
+    if (!isRecurring) return null;
+    final raw = recurringPattern?.trim();
+    if (raw == null || !raw.startsWith('{')) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final untilRaw = decoded['until'];
+      if (untilRaw is String && untilRaw.isNotEmpty) {
+        return DateTime.tryParse(untilRaw);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// One-shots expire when `endTime` is not after [now]. Recurring templates
+  /// with an `until` expire the same way; templates without `until` never do.
+  bool isExpired([DateTime? now]) {
+    final t = now ?? DateTime.now();
+    if (!isRecurring) return !endTime.isAfter(t);
+    final until = recurrenceUntil;
+    if (until == null) return false;
+    return !until.isAfter(t);
   }
 }

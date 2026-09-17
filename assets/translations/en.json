@@ -324,6 +324,7 @@
       "weekly_label": "Weekly · {days}",
       "weekly_label_plain": "Weekly",
       "until_suffix": " · until {date}",
+      "next_occurrences": "Next: {times}",
       "repeats_label": "Repeats: {type}",
       "mon": "Mon",
       "tue": "Tue",
