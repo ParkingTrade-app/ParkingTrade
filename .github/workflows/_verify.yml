@@ -8,7 +8,9 @@
 #   1. supabase-db-verify     — boots a clean local stack, applies EVERY migration
 #                               in order via `supabase db reset` (catches SQL errors
 #                               and non-idempotent policies).
-#   2. flutter-analyze-test   — flutter analyze + test + deno test on _shared utils.
+#   2. flutter-analyze-test   — flutter analyze + unit tests + host
+#                               integration_test/app_e2e_test.dart + deno test
+#                               on _shared utils.
 #   3. bootstrap-consistency  — asserts supabase/bootstrap/bootstrap.sql still covers
 #                               every Vault secret / notify-* drain the migrations need
 #                               (see scripts/check-bootstrap-consistency.sh).
@@ -58,7 +60,7 @@ jobs:
   # JOB 2 — Flutter static analysis & tests
   # ───────────────────────────────────────────────────────────────────────────
   flutter-analyze-test:
-    name: "Job 2 · Flutter — analyze & test"
+    name: "Job 2 · Flutter — analyze, unit & integration"
     runs-on: ubuntu-latest
 
     steps:
@@ -78,7 +80,14 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Flutter test
-        run: flutter test --coverage
+        run: flutter test --coverage --exclude-tags e2e
+
+      # Widget-level integration suite on the host VM (no Android emulator).
+      # Lives under test/integration/ so Flutter uses AutomatedTestWidgetsFlutterBinding.
+      # Repeating animations: bounded pump/waitFor. Placeholder Supabase HTTP
+      # fails immediately. Optional nightly emulator: flutter_e2e_tests.yml.
+      - name: Flutter integration tests (host)
+        run: flutter test test/integration/app_e2e_test.dart --reporter expanded
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
