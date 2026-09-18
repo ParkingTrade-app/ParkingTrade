@@ -74,6 +74,8 @@ entry is matched and a notification row/log is produced.
 
 ### 2.1 Scoreboard with leading tenants (requested #3)
 
+**Status: ⏳ Backend slice implemented (migration 050).** `apartment_scores` view + `get_building_leaderboard(building_id)` SECURITY DEFINER RPC (own-building only). Weights in `leaderboard_score_weights()`: completed lend +10, hour lent +1, reciprocal completed swap +15, upheld `booking_issues` −5. E2E `20-building-scoreboard.ts`. Remaining: Flutter `LeaderboardScreen` + `ScoreService` (not this PR).
+
 Points for lending spots; leaderboard per building. Compute from existing data first (no new write paths), then display.
 
 **Prompt:**
