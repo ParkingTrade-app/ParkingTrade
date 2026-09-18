@@ -1,0 +1,84 @@
+# Flutter E2E on an Android emulator — OPTIONAL, not a PR merge gate.
+#
+# Why this is not in ci.yml / _verify.yml
+# ---------------------------------------
+# The required gate is `flutter test test/integration/app_e2e_test.dart` on
+# the ubuntu host inside _verify.yml Job 2 (AutomatedTestWidgetsFlutterBinding,
+# no device). Nested-KVM AVD boot is the flake vector that made the old
+# macos-13 workflow sit `queued` forever (Issue #28).
+#
+# This workflow runs the thin integration_test/ wrapper of the same suite
+# on a real emulator: nightly + manual dispatch. continue-on-error stays
+# true until a stretch of green runs; promote to required only then.
+
+name: Flutter E2E (emulator, optional)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:00 UTC nightly
+    - cron: '0 3 * * *'
+
+jobs:
+  emulator:
+    name: Android emulator · integration_test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-api34-x86_64-google_apis
+
+      - name: Run integration tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: flutter test integration_test/app_e2e_test.dart --reporter expanded
