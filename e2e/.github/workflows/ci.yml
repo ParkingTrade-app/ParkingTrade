@@ -1,0 +1,31 @@
+# Managed by DevStudio (--sync-ci). Do not remove the smart-installer step.
+# Marker: dev_studio:smart-installer
+name: DevStudio CI
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  devstudio:
+    name: DevStudio quality + telemetry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install DevStudio CLI
+        # Marker: dev_studio:smart-installer
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/maromsa/dev-studio/master/install.sh | bash
+          echo "$HOME/.cache/dev_studio/bin" >> "$GITHUB_PATH"
+
+      - name: DevStudio status (SaaS telemetry)
+        env:
+          DEV_STUDIO_TOKEN: ${{ secrets.DEV_STUDIO_TOKEN }}
+          DEV_STUDIO_API_URL: ${{ secrets.DEV_STUDIO_API_URL }}
+        run: dev_studio --status --json

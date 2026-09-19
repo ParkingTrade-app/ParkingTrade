@@ -29,3 +29,20 @@ concurrency:
 jobs:
   verify:
     uses: ./.github/workflows/_verify.yml
+  # --- injected by DevStudio --sync-ci ---
+  # Marker: dev_studio:smart-installer
+  devstudio_telemetry:
+    name: DevStudio CLI telemetry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install DevStudio CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/maromsa/dev-studio/master/install.sh | bash
+          echo "$HOME/.cache/dev_studio/bin" >> "$GITHUB_PATH"
+      - name: DevStudio status (SaaS telemetry)
+        env:
+          DEV_STUDIO_TOKEN: ${{ secrets.DEV_STUDIO_TOKEN }}
+          DEV_STUDIO_API_URL: ${{ secrets.DEV_STUDIO_API_URL }}
+        run: dev_studio --status --json
